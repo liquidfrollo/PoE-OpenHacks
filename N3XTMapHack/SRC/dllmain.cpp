@@ -2,12 +2,17 @@
 #include <iostream>
 #include <stdlib.h>
 
+#define ZOOM_OFFSET	0x00876784
+#define NORMAL_ZOOM	0xC4757000
+#define ZOOM_LIFT	0xC4D57000
 #define MAPOFFSET	0x004D5FA0
 #define OFFSET0		0x00000028
 #define OFFSET1		0x00000034
 #define OFFSET2		0x00000040
 #define OFFSET3		0x0000004C
 
+void ZoomRestore(DWORD base);
+void ZoomLift(DWORD base);
 void MapEdit(DWORD base);
 void RedirectIOToConsole();
 void MapRestore(DWORD base);
@@ -18,6 +23,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
+		RedirectIOToConsole();
 		DisableThreadLibraryCalls(hModule);
 		HANDLE thread_Handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadProc, hModule, 0, NULL);
 		break;
@@ -27,20 +33,24 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 
 VOID WINAPI ThreadProc(HMODULE hModule)
 {
+	
 	MessageBox(NULL, L"PRESS OK WHEN YOU HAVE LOGGED IN", L"N3XT Map Hack", MB_OK);
-
+	printf("OPEN-N3XT Hacks Find us on GitHub : https://github.com/OPEN-N3XT \n");
 	DWORD BASE = (DWORD)(GetModuleHandleA("PathOfExile.exe"));
 	printf("Press F5 to restore and unload the hack\n");
 	MapEdit(BASE);
+	ZoomLift(BASE);
 
 	bool loop = true;
 	
 	while (loop)
 	{
-		if (GetAsyncKeyState(VK_F5) & 1)
+		if (GetAsyncKeyState(VK_F5))
 		{
 			loop = false;
 			MapRestore(BASE);
+			ZoomRestore(BASE);
+			printf("Values restored, unloading hack\n");
 			FreeLibraryAndExitThread(hModule, 0);
 		}
 	}
@@ -88,6 +98,18 @@ void MapRestore(DWORD base)
 	*(DWORD*)loc3 = 0x00D9240C;
 
 	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+}
+
+void ZoomLift(DWORD base)
+{
+	DWORD address = base + ZOOM_OFFSET;
+	*(DWORD*)address = ZOOM_LIFT;
+}
+
+void ZoomRestore(DWORD base)
+{
+	DWORD address = base + ZOOM_OFFSET;
+	*(DWORD*)address = NORMAL_ZOOM;
 }
 
 void RedirectIOToConsole()
