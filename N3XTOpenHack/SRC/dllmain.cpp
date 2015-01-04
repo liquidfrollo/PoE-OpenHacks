@@ -53,6 +53,7 @@ VOID WINAPI ThreadProc(HMODULE hModule)
 			printf("Values restored, unloading hack\n");
 			FreeLibraryAndExitThread(hModule, 0);
 		}
+		Sleep(500);
 	}
 }
 
