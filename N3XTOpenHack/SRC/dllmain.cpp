@@ -2,22 +2,24 @@
 #include <iostream>
 #include <stdlib.h>
 
-#define ZOOM_OFFSET	0x00876784
-#define NORMAL_ZOOM	0xC4757000
-#define ZOOM_LIFT	0xC4D57000
-#define MAPOFFSET	0x004D5FA0
-#define OFFSET0		0x00000028
-#define OFFSET1		0x00000034
-#define OFFSET2		0x00000040
-#define OFFSET3		0x0000004C
+#define ZOOM_OFFSET		0x00876784 
+#define NORMAL_ZOOM		0xC4757000 
+#define MAX_ZOOM		0xC4D57000 
+#define MAPOFFSET		0x004D5FA0
 
-void ZoomRestore(DWORD base);
-void ZoomLift(DWORD base);
-void MapEdit(DWORD base);
+#define BRIGHT1			0x000005FC 
+#define BRIGHT2			0x00000652 
+#define BRIGHT_OFFSET		0x00232FC0
+
+void Light(DWORD base);
+void MapEdit(DWORD base, bool restore);
 void RedirectIOToConsole();
-void MapRestore(DWORD base);
+void IncreaseZoomCeiling();
 VOID WINAPI ThreadProc(HMODULE hModule);
 
+DWORD BASE;
+bool BREAK = false;
+//------------Main----------------//
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -33,84 +35,101 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 
 VOID WINAPI ThreadProc(HMODULE hModule)
 {
-	
-	MessageBox(NULL, L"PRESS OK WHEN YOU HAVE LOGGED IN", L"N3XT Map Hack", MB_OK);
-	printf("OPEN-N3XT Hacks Find us on GitHub : https://github.com/OPEN-N3XT \n");
-	DWORD BASE = (DWORD)(GetModuleHandleA("PathOfExile.exe"));
-	printf("Press F5 to restore and unload the hack\n");
-	MapEdit(BASE);
-	ZoomLift(BASE);
 
-	bool loop = true;
+	printf("MapHack -> F2\n FullBright -> F3\n ZoomHack -> F4\n Unload Hack -> Home\n No toggles, once its on, its on");
+
+	BASE = (DWORD)(GetModuleHandleA("PathOfExile.exe"));
 	
-	while (loop)
+	while (!BREAK)
 	{
-		if (GetAsyncKeyState(VK_F5))
+		if (GetAsyncKeyState(VK_F2)) // MAP HACK
 		{
-			loop = false;
-			MapRestore(BASE);
-			ZoomRestore(BASE);
-			printf("Values restored, unloading hack\n");
+			printf("MapHack Active\n");
+			MapEdit(BASE, false);
+		}
+
+		if (GetAsyncKeyState(VK_F3))//fullBright hack
+		{
+			printf("FullBright Active\n");
+			Light(BASE);
+		}
+
+		if (GetAsyncKeyState(VK_F4))//ZoomCeiling increase
+		{
+			printf("Zoomhack Active\n");
+			DWORD address = BASE + ZOOM_OFFSET;
+			*(DWORD*)address = MAX_ZOOM;
+		}
+
+		if (GetAsyncKeyState(VK_HOME))
+		{
+			printf("Unloading injected module\n");
 			FreeLibraryAndExitThread(hModule, 0);
 		}
-		Sleep(500);
+		Sleep(150);
 	}
+
 }
 
-void MapEdit(DWORD base)
+void MapEdit(DWORD base, bool restore)
 {
 	DWORD loc1, loc2, loc3, loc0;
+	
+	//Offset to change 0	: 0x028
+	//Offset to change 1	: 0x034 
+	//offset to change 2	: 0x040
+	//offset to change 3	: 0x04C
 
 	base += MAPOFFSET;
-	loc0 = (base + OFFSET0);
-	loc1 = (base + OFFSET1);
-	loc2 = (base + OFFSET2);
-	loc3 = (base + OFFSET3);
+
+	loc0	= (base + 0x028);
+	loc1	= (base + 0x034);
+	loc2	= (base + 0x040);
+	loc3	= (base + 0x04C);
 
 	MEMORY_BASIC_INFORMATION mbi;
 	VirtualQuery((LPCVOID)base, &mbi, sizeof(mbi));
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
+	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_READWRITE, &mbi.Protect);
 
-	*(DWORD*)loc0 = 0x240C8BE8;
-	*(DWORD*)loc1 = 0xE8D9240C;
-	*(DWORD*)loc2 = 0xE8D9240C;
-	*(DWORD*)loc3 = 0xE8D9240C;
+	if (restore)
+	{
+		*(DWORD*)loc0 = 0x240C8B00;
+		*(DWORD*)loc1 = 0x00D9240C;
+		*(DWORD*)loc2 = 0x00D9240C;
+		*(DWORD*)loc3 = 0x00D9240C;
+	}
+	else
+	{
+		*(DWORD*)loc0 = 0x240C8BE8;
+		*(DWORD*)loc1 = 0xE8D9240C;
+		*(DWORD*)loc2 = 0xE8D9240C;
+		*(DWORD*)loc3 = 0xE8D9240C;
+	}
 
 	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
 }
 
-void MapRestore(DWORD base)
+void Light(DWORD base)
 {
-	DWORD loc1, loc2, loc3, loc0;
+	DWORD locBase, b1, b2;
 
-	base += MAPOFFSET;
-	loc0 = (base + OFFSET0);
-	loc1 = (base + OFFSET1);
-	loc2 = (base + OFFSET2);
-	loc3 = (base + OFFSET3);
+	locBase = base + BRIGHT_OFFSET;
+	
+	b1 = (locBase + BRIGHT1) + 4;
+	b2 = (locBase + BRIGHT2) + 4;
 
-	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQuery((LPCVOID)base, &mbi, sizeof(mbi));
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
+	MEMORY_BASIC_INFORMATION mbi, mbi1;
+	VirtualQuery((LPCVOID)*(DWORD*)b1, &mbi, sizeof(mbi));
+	VirtualQuery((LPCVOID)*(DWORD*)b2, &mbi1, sizeof(mbi1));
 
-	*(DWORD*)loc0 = 0x240C8B00;
-	*(DWORD*)loc1 = 0x00D9240C;
-	*(DWORD*)loc2 = 0x00D9240C;
-	*(DWORD*)loc3 = 0x00D9240C;
+	VirtualProtect((LPVOID)mbi.BaseAddress, mbi.RegionSize, PAGE_READWRITE, &mbi.Protect);
+	VirtualProtect((LPVOID)mbi1.BaseAddress, mbi1.RegionSize, PAGE_READWRITE, &mbi1.Protect);
 
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
-}
+	*(DWORD*)*(DWORD*)b1 = 0x469C4000;
+	*(DWORD*)*(DWORD*)b2 = 0x453B8000;
 
-void ZoomLift(DWORD base)
-{
-	DWORD address = base + ZOOM_OFFSET;
-	*(DWORD*)address = ZOOM_LIFT;
-}
-
-void ZoomRestore(DWORD base)
-{
-	DWORD address = base + ZOOM_OFFSET;
-	*(DWORD*)address = NORMAL_ZOOM;
+	VirtualProtect((LPVOID)mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+	VirtualProtect((LPVOID)mbi1.BaseAddress, mbi1.RegionSize, mbi1.Protect, &mbi1.Protect);
 }
 
 void RedirectIOToConsole()
